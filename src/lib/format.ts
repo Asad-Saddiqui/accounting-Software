@@ -5,6 +5,9 @@ export const CURRENCY = process.env.NEXT_PUBLIC_CURRENCY || "PKR";
 const moneyFormat = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: CURRENCY,
+  // Always show minor units so journal amounts are exact (CLDR shows PKR with none).
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 });
 
 export function money(cents: number): string {

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as acc from "@/lib/accounting";
+import * as jr from "@/lib/journal";
 import { toCents } from "@/lib/format";
 
 export type FormState = { error?: string } | undefined;
@@ -51,32 +52,69 @@ export async function deleteAccountAction(id: number) {
 
 /* Journal */
 
-export async function createEntryAction(_: FormState, f: FormData): Promise<FormState> {
+export async function saveJournalAction(id: number | null, _: FormState, f: FormData): Promise<FormState> {
+  const post = str(f, "intent") === "post";
+  let savedId = 0;
   const result = attempt(() => {
-    const raw = JSON.parse(str(f, "lines") || "[]") as {
-      accountId: string;
-      debit: string;
-      credit: string;
-      description: string;
-    }[];
-    const lines = raw.map((l) => ({
-      accountId: Number(l.accountId),
+    const raw = JSON.parse(str(f, "payload") || "{}") as {
+      entryType: string;
+      period: string;
+      date: string;
+      memo: string;
+      reference: string;
+      preparedBy: string;
+      supportingDetail: string;
+      reverse: boolean;
+      reverseOn: string;
+      lines: { accountId: string; debit: string; credit: string; department: string; description: string }[];
+    };
+    const lines = (raw.lines ?? []).map((l) => ({
+      accountId: Number(l.accountId) || 0,
       debit: toCents(l.debit),
       credit: toCents(l.credit),
+      department: l.department,
       description: l.description,
     }));
     if (lines.some((l) => Number.isNaN(l.debit) || Number.isNaN(l.credit)))
       throw new acc.AccountingError("Amounts must be numbers.");
-    acc.postEntry({ date: str(f, "date"), memo: str(f, "memo"), lines });
+    savedId = jr.saveEntry(
+      {
+        entryType: raw.entryType,
+        period: raw.period,
+        date: raw.date,
+        memo: raw.memo ?? "",
+        reference: raw.reference,
+        preparedBy: raw.preparedBy,
+        supportingDetail: raw.supportingDetail,
+        reverseOn: raw.reverse ? raw.reverseOn : null,
+        lines,
+      },
+      { post, id: id ?? undefined },
+    );
   });
   if (result) return result;
   refresh();
-  redirect("/journal");
+  redirect(`/journal/${savedId}`);
 }
 
-export async function deleteEntryAction(id: number) {
-  acc.deleteManualEntry(id);
+export async function postJournalAction(id: number): Promise<FormState> {
+  const result = attempt(() => jr.postDraft(id));
+  if (result) return result;
   refresh();
+  return { error: undefined };
+}
+
+export async function reverseJournalAction(id: number, _: FormState, f: FormData): Promise<FormState> {
+  const result = attempt(() => jr.reverseEntry(id, str(f, "date")));
+  if (result) return result;
+  refresh();
+  return { error: undefined };
+}
+
+export async function deleteJournalAction(id: number) {
+  jr.deleteEntry(id);
+  refresh();
+  redirect("/journal");
 }
 
 /* Customers */

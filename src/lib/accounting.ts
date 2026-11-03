@@ -91,7 +91,7 @@ export function accountBalances(from = "0000-01-01", to = "9999-12-31"): Account
          LEFT JOIN (
            SELECT jl.* FROM journal_lines jl
            JOIN journal_entries je ON je.id = jl.entry_id
-           WHERE je.date BETWEEN ? AND ?
+           WHERE je.status = 'posted' AND je.date BETWEEN ? AND ?
          ) l ON l.account_id = a.id
         GROUP BY a.id
         ORDER BY a.code`,
@@ -174,7 +174,7 @@ export function accountLedger(id: number): LedgerRow[] {
     .prepare(
       `SELECT e.id AS entry_id, e.date, e.memo, e.source, e.source_id, l.description, l.debit, l.credit
          FROM journal_lines l JOIN journal_entries e ON e.id = l.entry_id
-        WHERE l.account_id = ?
+        WHERE l.account_id = ? AND e.status = 'posted'
         ORDER BY e.date, e.id, l.id`,
     )
     .all(id) as Omit<LedgerRow, "balance">[];
@@ -218,8 +218,11 @@ export function postEntry(input: {
 
   return db.transaction(() => {
     const info = db
-      .prepare("INSERT INTO journal_entries (date, memo, source, source_id) VALUES (?, ?, ?, ?)")
-      .run(input.date, input.memo.trim(), input.source ?? "manual", input.sourceId ?? null);
+      .prepare(
+        `INSERT INTO journal_entries (date, period, memo, source, source_id, status, posted_at)
+         VALUES (?, substr(?, 1, 7), ?, ?, ?, 'posted', CURRENT_TIMESTAMP)`,
+      )
+      .run(input.date, input.date, input.memo.trim(), input.source ?? "manual", input.sourceId ?? null);
     const entryId = Number(info.lastInsertRowid);
     const insertLine = db.prepare(
       "INSERT INTO journal_lines (entry_id, account_id, debit, credit, description) VALUES (?, ?, ?, ?, ?)",
@@ -233,7 +236,7 @@ export function postEntry(input: {
 export function listEntries(limit = 200): JournalEntry[] {
   const db = getDb();
   const entries = db
-    .prepare("SELECT * FROM journal_entries ORDER BY date DESC, id DESC LIMIT ?")
+    .prepare("SELECT * FROM journal_entries WHERE status = 'posted' ORDER BY date DESC, id DESC LIMIT ?")
     .all(limit) as Omit<JournalEntry, "lines" | "total">[];
   if (entries.length === 0) return [];
 
@@ -253,17 +256,6 @@ export function listEntries(limit = 200): JournalEntry[] {
     const ls = byEntry.get(e.id) ?? [];
     return { ...e, lines: ls, total: ls.reduce((s, l) => s + l.debit, 0) };
   });
-}
-
-export function deleteManualEntry(id: number) {
-  const db = getDb();
-  const entry = db.prepare("SELECT source FROM journal_entries WHERE id = ?").get(id) as
-    | { source: string }
-    | undefined;
-  if (!entry) throw new AccountingError("Entry not found.");
-  if (entry.source !== "manual")
-    throw new AccountingError("This entry was created by an invoice, payment or expense. Delete that instead.");
-  db.prepare("DELETE FROM journal_entries WHERE id = ?").run(id);
 }
 
 /* ------------------------------------------------------------------ */

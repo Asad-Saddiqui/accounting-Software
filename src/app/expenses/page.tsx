@@ -15,7 +15,7 @@ export default function ExpensesPage() {
   return (
     <>
       <PageHeader title="Expenses" description="Money your business spends. Each expense posts to the journal automatically." />
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="card overflow-x-auto">
           {expenses.length === 0 ? (
             <Empty>No expenses recorded yet.</Empty>

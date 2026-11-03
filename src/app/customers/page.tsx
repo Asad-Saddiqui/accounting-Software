@@ -10,7 +10,7 @@ export default function CustomersPage() {
   return (
     <>
       <PageHeader title="Customers" description="People and businesses you invoice." />
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="card overflow-x-auto">
           {customers.length === 0 ? (
             <Empty>No customers yet. Add your first one.</Empty>

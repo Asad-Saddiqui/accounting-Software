@@ -6,10 +6,10 @@ import { formatDate } from "@/lib/format";
 import { DeleteButton } from "@/components/delete-button";
 import { Amount, Empty, PageHeader } from "@/components/ui";
 
-function sourceLink(source: string, sourceId: number | null) {
+function sourceLink(source: string, sourceId: number | null, entryId: number) {
   if (sourceId && (source === "invoice" || source === "payment")) return `/invoices/${sourceId}`;
   if (source === "expense") return "/expenses";
-  return "/journal";
+  return `/journal/${entryId}`;
 }
 
 export default async function AccountPage({ params }: { params: Promise<{ id: string }> }) {
@@ -52,7 +52,7 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
                 <tr key={i}>
                   <td className="whitespace-nowrap">{formatDate(r.date)}</td>
                   <td>
-                    <Link href={sourceLink(r.source, r.source_id)} className="link">{r.memo || "Journal entry"}</Link>
+                    <Link href={sourceLink(r.source, r.source_id, r.entry_id)} className="link">{r.memo || "Journal entry"}</Link>
                     {r.description && <div className="text-xs text-slate-500">{r.description}</div>}
                   </td>
                   <td className="num">{r.debit ? <Amount value={r.debit} /> : ""}</td>
